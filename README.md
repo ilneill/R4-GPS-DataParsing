@@ -5,7 +5,7 @@ A high-performance, interrupt-driven NMEA sentence parser specifically optimized
 
 ![Up and Running!](images/NEO-6M-GPS-ModuleProject.jpg)
 
-![Look at the Data!](image/OLED-Data-Display.jpg)
+![Look at the Data!](images/OLED-Data-Display.jpg)
 
 ## Key Features
 * **Hardware Interrupts:** Uses 'FspTimer' to sample 'Serial1' at 1kHz, placing the raw GPS data in a robust circular buffer.
