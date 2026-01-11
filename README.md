@@ -3,9 +3,10 @@ An Interrupt Driven NEO-6M GPS Parser for Arduino Nano R4 and Uno R4
 
 A high-performance, interrupt-driven NMEA sentence parser specifically optimized for the **Arduino Nano R4 or Uno R4 (Minima or WiFi)**. This project leverages the Renesas RA4M1 hardware timers to ensure zero data loss from the GPS module, even during heavy OLED refresh cycles. Contrast this with the more traditional (and often blocking) "SoftwareSerial" approach used in R3 solutions, that do not have the R4's additional hardware capabilities, were GPS data can be lost during heavy OLED refresh cycles.
 
-![Up and Running!](images/NEO-6M-GPS-ModuleProject.jpg)
+| Up and Running! | Look at the Data! |
+| :---: | :---: |
+| ![Up and Running!](images/NEO-6M-GPS-Module%20Project.jpg) | ![Look at the Data!](images/OLED-Data-Display.jpg) |
 
-![Look at the Data!](images/OLED-Data-Display.jpg)
 
 ## Key Features
 * **Hardware Interrupts:** Uses 'FspTimer' to sample 'Serial1' at 1kHz, placing the raw GPS data in a robust circular buffer.
