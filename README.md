@@ -1,4 +1,4 @@
-# R4-GPS-DataParsing
+# R4-GPS-Data Parsing
 An Interrupt Driven NEO-6M GPS Parser for Arduino Nano R4 and Uno R4
 
 A high-performance, interrupt-driven NMEA sentence parser specifically optimized for the **Arduino Nano R4 or Uno R4 (Minima or WiFi)**. This project leverages the Renesas RA4M1 hardware timers to ensure zero data loss from the GPS module, even during heavy OLED refresh cycles. Contrast this with the more traditional (and often blocking) "SoftwareSerial" approach used in R3 solutions, that do not have the R4's additional hardware capabilities, were GPS data can be lost during heavy OLED refresh cycles.
