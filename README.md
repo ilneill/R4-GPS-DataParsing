@@ -24,7 +24,7 @@ A high-performance, interrupt-driven NMEA sentence parser specifically optimized
 
 ## Why This Sketch is "Robust"
 
-Most GPS sketches use the 'TinyGPS' library with 'SoftwareSerial'. While great at first, these scripts often "stutter" (mine certainly did) or drop data (again, mine certainly did) when the processor is busy updating a display.
+Most GPS sketches use the 'TinyGPS' library with 'SoftwareSerial'. While great at first, these scripts often "stutter" (mine certainly did) or drop data (again, mine certainly did) when the processor is busy updating a display, or doing other things in loop().
 
 This project is built differently:
 
