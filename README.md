@@ -3,12 +3,13 @@ An Interrupt Driven NEO-6M GPS Parser for Arduino Nano R4 and Uno R4.
 
 A high-performance, interrupt-driven NMEA sentence parser specifically optimized for the **Arduino Nano R4 or Uno R4 (Minima or WiFi)**. This project leverages the Renesas RA4M1 hardware timers to ensure zero data loss from the GPS module, even during heavy OLED refresh cycles. Contrast this with the more traditional (and often blocking) "SoftwareSerial" approach used in R3 solutions, that do not have the R4's additional hardware capabilities, were GPS data can be lost during heavy OLED refresh cycles.
 
-## Warning!
-As I was working on this script, improving the logic around the GPS module cold starting and fixing some typos, v1.5.2 of the **Arduino Uno R4** board package was released. Of course, I upgraded from v1.5.1 to this new version, but then the script stopped working, or specifically the OLED display stopped working. The script compiles perfectly and downloads without issue, but it seems that something in the board package update breaks something (a something that is I2C related, I think) and despite a lot of experimenting with suggested workarounds and I2C timeout values, only downgrading back to v1.5.1 fixed the OLED display issue.
-
 | Up and Running! | Look at the Data! |
 | :---: | :---: |
 | ![Up and Running!](images/NEO-6M-GPS-Module%20Project.jpg) | ![Look at the Data!](images/OLED-Data-Display.jpg) |
+
+
+## Warning!
+As I was working on this script, improving the logic around the GPS module cold starting and fixing some typos, v1.5.2 of the **Arduino Uno R4** board package was released. Of course, I upgraded from v1.5.1 to this new version, but then the script stopped working, or specifically the OLED display stopped working. The script compiles perfectly and downloads without issue, but it seems that something in the board package update breaks something (a something that is I2C related, I think) and despite a lot of experimenting with suggested workarounds and I2C timeout values, only downgrading back to v1.5.1 fixed the OLED display issue.
 
 
 ## Key Features
@@ -27,7 +28,6 @@ As I was working on this script, improving the logic around the GPS module cold 
 
 
 ## Why This Sketch is "Robust"
-
 Most GPS sketches use the 'TinyGPS' library with 'SoftwareSerial'. While great at first, these scripts often "stutter" (mine certainly did) or drop data (again, mine certainly did) when the processor is busy updating a display, or doing other things in loop().
 
 This project is built differently:
@@ -83,7 +83,6 @@ This project is built differently:
 
 
 ## How It Works: Under the Hood
-
 The sketch is architected to prioritize data integrity and UI responsiveness by separating data acquisition from data processing.
 
 ### 1. Background Data Acquisition (The ISR)
@@ -118,17 +117,14 @@ The 'displayGPSDateTime()' function manages the "User Experience":
 
 
 ## Use and Abuse
-
 This code was designed to be resilient. Feel free to flood the buffer or unplug the GPS mid-stream; the error handling and circular buffer are designed to recover gracefully.
 
 
 ## ToDo
-
 Is there anything? Let me know if you find a problem or think of any improvements!
 
 
 ## References 
-
 These were very helpful:
  * https://www.rfwireless-world.com/terminology/gps-nmea-sentences
  * https://www.best-microcontroller-projects.com/arduino-strtok.html
