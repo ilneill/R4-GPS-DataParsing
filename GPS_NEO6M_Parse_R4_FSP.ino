@@ -6,6 +6,9 @@
  * Extracting the time, date, lat and long fields from the GPRMC NMEA sentence.
  * Extracting the number of satellites field from the GPGGA NMEA sentence.
  * 
+ * WARNING
+ *  This script does not yet work on the Arduino Nano R4 with board package v1.5.2!
+ *
  * https://www.rfwireless-world.com/terminology/gps-nmea-sentences
  * https://www.best-microcontroller-projects.com/arduino-strtok.html
  * https://forum.arduino.cc/t/strcpy-and-strcat/880153/4
@@ -36,7 +39,7 @@
 #define HBCOUNTER   250                   // Toggle the HB LED in ms.
 #define GPSLOST     2000                  // GPS data "No Data" timeout in ms.
 
-// Circular Data Buffer (volatile because it's used in Interrupt).
+// Circular Data Buffer (volatile because it's used in the interrupt).
 volatile char gpsDataBuffer[GPSBUFR1];
 volatile unsigned int bufferHead = 0;     // Updated by ISR. Read by loop().
 volatile unsigned int bufferTail = 0;     // Updated by loop(). Read by ISR.
@@ -45,12 +48,14 @@ volatile bool bufferOverflow = false;     // Sticky buffer error flag.
 // Other global variables.
 char sentence[NMEAMAXLEN + 1];
 bool gpsValid = false;                    // The GPS module is sending valid data.
-byte gpsDateD, gpsDateM, gpsDateY;        // Date.
-byte gpsTimeH, gpsTimeM, gpsTimeS;        // Time.
-double gpsLatD, gpsLongD;                 // Location.
+byte gpsDateD = 31;                       // Date - day.
+byte gpsDateM = 12;                       // Date - month.
+byte gpsDateY = 99;                       // Date - year.
+byte gpsTimeH, gpsTimeM, gpsTimeS;        // Time - hours, minutes, seconds.
+double gpsLatD, gpsLongD;                 // Location - latitude, longitude.
 byte gpsSats;                             // Number of satellites being tracked.
-unsigned int checksumErrors = 0;          // Count of sentences that failed the XOR check.
-unsigned long lastFixMillis = 0;          // Timestamp of the last valid NMEA sentence.
+unsigned int checksumErrors = 0;          // Count of sentences that have failed the XOR check.
+unsigned long lastFixMillis;              // Timestamp of the last valid NMEA sentence.
 bool signalWarning = false;               // Triggered if no data for > 2 seconds.
 
 // My hardware interrupts.
@@ -60,7 +65,7 @@ FspTimer myTimer;
 Adafruit_SSD1306 myDisplay(SCRNWDTH, SCRNHGHT, &Wire, OLEDRST);
 
 // Interrupt Service Routine (ISR) - 1000Hz Timer.
-// Note: Ensure your timer setup calls this function every 1ms.
+// The timer setup should call this function every 1ms.
 void gpsDataReadISR(timer_callback_args_t *isr_args) {
   (void)isr_args;                         // This line prevents a potiential "unused parameter" compiler warning.
   static byte hbCounter = 0;
@@ -76,8 +81,8 @@ void gpsDataReadISR(timer_callback_args_t *isr_args) {
     newBufferHead = (bufferHead + 1) % GPSBUFR1;
     // Test for a buffer overflow, or read the incoming data into the GPS data buffer!
     if (newBufferHead == bufferTail) {
-      bufferOverflow = true;              // The GPS data buffer is full! 
-      (void)Serial1.read();               // Drop incoming byte to prevent corruption of read data.
+      bufferOverflow = true;                      // The GPS data buffer is full! 
+      (void)Serial1.read();                       // Drop incoming byte to prevent corruption of read data.
     }
     else {
       gpsDataBuffer[bufferHead] = Serial1.read(); // Read the new gps data into the buffer.
@@ -95,37 +100,48 @@ void setup() {
   // Initialize the hardware UART (pins D0/RX and D1/TX) connected to the GPS module.
   Serial1.begin(GPSBAUD);
   // Set up the OLED display.
+
+  // Some I2C bus tweaks for the SSD1306 OLED display.
+  //Wire.setWireTimeout(10000); // An Arduino R4 board package v1.5.2 workaround... that does not work for this script!
+  Wire.setClock(400000);      // Set a faster I2C bus speed: 400000 (Fast Mode).
+  delay(500);                 // Give the display some time to initialise.
+
   Serial.print("Starting SSD1306 display...");
-  while(!myDisplay.begin(SSD1306_SWITCHCAPVCC, SCRNADDR)); 
+  // This just seems to verify the buffer memory grab, not that the OLED display was found.
+  while(!myDisplay.begin(SSD1306_SWITCHCAPVCC, SCRNADDR));
   Serial.println(" OK!");
-  // Set a faster I2C bus speed: 400000 (Fast Mode).
-  Wire.setClock(400000);
-  // Use the OLED display...
+  // Use the OLED display.
   myDisplay.display();                    // Allow the Adafruit logo to display.
-  delay(1000); // Pause for 1 second.
+  delay(1000);                            // Pause for 1 second to allow the Adafruit logo to be seen.
   myDisplay.clearDisplay();
   myDisplay.setTextSize(1);               // Normal 1:1 pixel scale.
   myDisplay.setTextColor(SSD1306_WHITE);  // Draw white text.
   myDisplay.cp437(true);                  // Use full 256 char 'Code Page 437' font.
   myDisplay.setCursor(0,0);               // Start at top-left corner.
-  myDisplay.println("Nano R4 Ready!");    // Show something on the OLED display.
+  myDisplay.println("Nano R4 Ready!");    // Show a message on the OLED display.
   myDisplay.display();
-  delay(2000); // Pause for 2 seconds to allow the Adafruit logo to be seen.
-  // Clear the buffer
+  delay(1000);                            // Pause for 1 second to allow the message to be seen.
+  // Clear the buffer.
   myDisplay.clearDisplay();
-  // Move on with the job...
+  myDisplay.display();
+
+  // Move on with the job.
   Serial.println("NEMA Sentence Data Parser...");
   Serial.println(" - Flushing GPS data stream noise!");
   while(Serial1.available()) Serial1.read(); // Flush startup noise.
-  // Start the 1ms Timer (Standard AGT timer on Renesas).
+  // Start the 1ms Timer (a Standard AGT timer on Renesas).
   myTimer.begin(TIMER_MODE_PERIODIC, AGT_TIMER, 0, 1000.0f, 50.0f, gpsDataReadISR, nullptr);
   myTimer.setup_overflow_irq();
   myTimer.open();
   myTimer.start();
   Serial.println(" - Hardware interrupt armed and running!");
+  lastFixMillis = millis();
+  Serial.println(" - Ready to receive data...");
 }
 
 void loop() {
+  static bool gpsCold = true;             // Assuming the GPS module is cold starting.
+  static unsigned long gpsColdTimer = 0;  // The GPS coldstart message display timer.
   bool bufferOverflowed = false;
   int h, d, m, y;                         // Signed integers for safe rollover math.
   byte maxDays;                           // Used for month-end logic.
@@ -145,55 +161,67 @@ void loop() {
   }
   // 2. If we have extracted a NMEA sentence from the GPS data buffer...
   if (getSentence()) {
-    parseSentence();                      // Parse it.
-    // ROBUST TIMEZONE CALCULATION - Do signed maths to allow for negative results.
-    h = gpsTimeH + TZOFFSET;
-    d = gpsDateD;
-    m = gpsDateM;
-    y = gpsDateY;
-    // Handle Hour Rollover
-    if (h >= 24) {
-      h -= 24;
-      d++; // Move to next day
-    } else if (h < 0) {
-      h += 24;
-      d--; // Move to previous day
-    }
-    // Determine if it's a leap year (GPS provides 2-digit year).
-    isLeap = (y % 4 == 0);                // Valid for 2000-2099 only!
-    // Handle Day/Month Rollover.
-    //  - if d was incremented or decremented, we check against month boundaries.
-    //  - if y was incremented or decremented, we check against the century boundaries.
-    if (d > 0) {
-      // Check for moving into the next month.
-      maxDays = (m == 2 && isLeap) ? 29 : daysInMonth[m];
-      if (d > maxDays) {
-        d = 1;
-        m++;
-        if (m > 12) {
-          m = 1;
-          y++;
-          if (y > 99) y = 0;              // Wrap year 2099 back to year 2000.
+    if (parseSentence()) {                // Parse it.
+      // GPS cold start detection and alerting.
+      if (gpsDateD == 31 && gpsDateM == 12 && gpsDateY == 99) {
+        gpsCold = true;                   // Set the cold start flag.
+        if (gpsColdTimer == 0 || millis() - gpsColdTimer > 500) {
+          Serial.println("GPS cold start!");
+          gpsColdTimer = millis();        // Reset the GPS cold start timer..
         }
       }
-    } else {
-      // Handle d < 1 (moved to previous month).
-      m--;
-      if (m < 1) {
-        m = 12;
-        y--;
-        if (y < 0) y = 99;                // Wrap year 2000 back to year 2099.
+      else {
+        gpsCold = false;                  // Unset the cold start flag.
       }
-      d = (m == 2 && isLeap) ? 29 : daysInMonth[m];
+      // ROBUST TIMEZONE CALCULATION - Do signed maths to allow for negative results.
+      h = gpsTimeH + TZOFFSET;
+      d = gpsDateD;
+      m = gpsDateM;
+      y = gpsDateY;
+      // Handle Hour Rollover
+      if (h >= 24) {
+        h -= 24;
+        d++; // Move to next day
+      } else if (h < 0) {
+        h += 24;
+        d--; // Move to previous day
+      }
+      // Determine if it's a leap year (GPS provides 2-digit year).
+      isLeap = (y % 4 == 0);              // Valid for 2000-2099 only!
+      // Handle Day/Month Rollover.
+      //  - if d was incremented or decremented, we check against month boundaries.
+      //  - if y was incremented or decremented, we check against the century boundaries.
+      if (d > 0) {
+        // Check for moving into the next month.
+        maxDays = (m == 2 && isLeap) ? 29 : daysInMonth[m];
+        if (d > maxDays) {
+          d = 1;
+          m++;
+          if (m > 12) {
+            m = 1;
+            y++;
+            if (y > 99) y = 0;            // Wrap year 2099 back to year 2000.
+          }
+        }
+      } else {
+        // Handle d < 1 (moved to previous month).
+        m--;
+        if (m < 1) {
+          m = 12;
+          y--;
+          if (y < 0) y = 99;              // Wrap year 2000 back to year 2099.
+        }
+        d = (m == 2 && isLeap) ? 29 : daysInMonth[m];
+      }
+      // Update the globals with the adjusted local time (casting back to byte safely).
+      gpsTimeH = (byte)h;
+      gpsDateD = (byte)d;
+      gpsDateM = (byte)m;
+      gpsDateY = (byte)y;
+      // Output the GPS data.
+      showGPSDateTime(gpsCold);           // Send data to the serial monitor.
+      displayGPSDateTime(gpsCold);        // Send data to the OLED display.
     }
-    // Update the globals with the adjusted local time (casting back to byte safely).
-    gpsTimeH = (byte)h;
-    gpsDateD = (byte)d;
-    gpsDateM = (byte)m;
-    gpsDateY = (byte)y;
-    // Output the GPS data.
-    showGPSDateTime();    // Send data to the serial monitor.
-    displayGPSDateTime(); // Send data to the OLED display.
   }
   // 3. Checking to see if we have lost the GPS data stream.
   if (millis() - lastFixMillis > GPSLOST) {
@@ -208,7 +236,7 @@ void loop() {
       myDisplay.println("NO DATA");
       myDisplay.display();
       // Send a message to the serial monitor.
-      Serial.print("No GPS data!");
+      Serial.println("No GPS data!");
     }
     signalWarning = true;                 // No valid data for over 2 seconds.
   }
@@ -303,7 +331,8 @@ bool getSentence() {
 }
 
 // Parse a NMEA sentence looking for a specific NMEA sentence.
-void parseSentence() {
+bool parseSentence() {
+  bool fieldFound = false;
   byte fieldCounter = 0;
   char *nmeaPart, *pointer;
   char nmeaType1[] = "GPRMC"; // The first NMEA sentence type to look for.
@@ -315,6 +344,7 @@ void parseSentence() {
     // --- CASE 1: GPRMC (Time, Date, Coordinates) ---
     if (strcmp(sentence, nmeaType1) == 0) {
     // if (strComp(sentence, nmeaType1)) {  // Replaced with standard library function strcmp().
+    fieldFound = true;
       #ifdef DEBUG
         Serial.print("RMC record: ");
         Serial.println(nmeaPart + 1);
@@ -367,6 +397,7 @@ void parseSentence() {
     // --- CASE 2: GPGGA (Satellites) ---
     else if (strcmp(sentence, nmeaType2) == 0) {
     // else if (strComp(sentence, nmeaType2)) { // Replaced with standard library function strcmp().
+      fieldFound = true;
       #ifdef DEBUG
         Serial.print("GGA record: ");
         Serial.println(nmeaPart + 1);
@@ -392,10 +423,11 @@ void parseSentence() {
       Serial.println("Delimiter not found!");
     }
   #endif
+  return fieldFound;
 }
 
 // Print the GPS date, time and location to the serial monitor.
-void showGPSDateTime(void) {
+void showGPSDateTime(bool gpsCold) {
   static bool noSignal = false;
   static byte pastTimeS = 255;
   static byte pastSats = 0;
@@ -412,12 +444,17 @@ void showGPSDateTime(void) {
       else {
         Serial.println();
       }
-      Serial.print("Date: ");
-      serPrint2d(gpsDateD);
-      Serial.print("/");
-      serPrint2d(gpsDateM);
-      Serial.print("/20");
-      serPrint2d(gpsDateY);
+      if (gpsCold) {
+        Serial.print("Date: --/--/----");
+      }
+      else {
+        Serial.print("Date: ");
+        serPrint2d(gpsDateD);
+        Serial.print("/");
+        serPrint2d(gpsDateM);
+        Serial.print("/20");
+        serPrint2d(gpsDateY);
+      }
       Serial.print("  Time: ");
       serPrint2d(gpsTimeH);
       Serial.print(":");
@@ -444,7 +481,7 @@ void showGPSDateTime(void) {
 }
 
 // Print the GPS date, time and location to the OLED display.
-void displayGPSDateTime(void) {
+void displayGPSDateTime(bool gpsCold) {
   static bool noSignal = false;
   static byte pastTimeS = 255;
   // Some locals to stress test the display spacing.
@@ -471,12 +508,17 @@ void displayGPSDateTime(void) {
       // --- DRAW DATA ---
       myDisplay.setTextSize(1);              // Reset to normal size text.
       myDisplay.setCursor(0, 22);            // Start data below title and line (title is ~16px high).
-      myDisplay.print("Date: ");
-      oledPrint2d(gpsDateD);
-      myDisplay.print("/");
-      oledPrint2d(gpsDateM);
-      myDisplay.print("/20");
-      oledPrint2dln(gpsDateY);
+      if (gpsCold) {
+        myDisplay.println("Date: --/--/----");
+      }
+      else {
+        myDisplay.print("Date: ");
+        oledPrint2d(gpsDateD);
+        myDisplay.print("/");
+        oledPrint2d(gpsDateM);
+        myDisplay.print("/20");
+        oledPrint2dln(gpsDateY);
+      }
       myDisplay.print("Time:  ");
       oledPrint2d(gpsTimeH);
       myDisplay.print(":");
@@ -523,15 +565,6 @@ void displayGPSDateTime(void) {
     if (!noSignal) {
       noSignal = true;                        // Ensure we only display this once.
       myDisplay.clearDisplay();               // Clear the OLED display.
-      // --- HEARTBEAT TRIANGLES ---
-      // Toggle based on even/odd seconds.
-      if (gpsTimeS % 2 == 0) {
-        // Draw triangle in top-left corner.
-        myDisplay.fillTriangle(0, 0, 5, 0, 0, 5, SSD1306_WHITE); 
-      } else {
-        // Draw triangle in top-right corner.
-        myDisplay.fillTriangle(127, 0, 122, 0, 127, 5, SSD1306_WHITE);
-      }      
       // Draw Box: x, y, width, height, color.
       myDisplay.drawRect(6, 20, 116, 24, SSD1306_WHITE); // msgX - 4, msgY - 4, 108 + 8, 16 + 8
       myDisplay.fillRect(6, 20, 116, 24, SSD1306_WHITE);

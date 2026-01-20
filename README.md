@@ -3,6 +3,9 @@ An Interrupt Driven NEO-6M GPS Parser for Arduino Nano R4 and Uno R4.
 
 A high-performance, interrupt-driven NMEA sentence parser specifically optimized for the **Arduino Nano R4 or Uno R4 (Minima or WiFi)**. This project leverages the Renesas RA4M1 hardware timers to ensure zero data loss from the GPS module, even during heavy OLED refresh cycles. Contrast this with the more traditional (and often blocking) "SoftwareSerial" approach used in R3 solutions, that do not have the R4's additional hardware capabilities, were GPS data can be lost during heavy OLED refresh cycles.
 
+## Warning!
+As I was working on this script, improving the logic around the GPS module cold starting and fixing some typos, v1.5.2 of the **Arduino Uno R4** board package was released. Of course, I upgraded from v1.5.1 to this new version, but then the script stopped working, or specifically the OLED display stopped working. The script compiles perfectly and downloads without issue, but it seems that something in the board package update breaks something (a something that is I2C related, I think) and despite a lot of experimenting with suggested workarounds and I2C timeout values, only downgrading back to v1.5.1 fixed the OLED display issue.
+
 | Up and Running! | Look at the Data! |
 | :---: | :---: |
 | ![Up and Running!](images/NEO-6M-GPS-Module%20Project.jpg) | ![Look at the Data!](images/OLED-Data-Display.jpg) |
@@ -14,12 +17,13 @@ A high-performance, interrupt-driven NMEA sentence parser specifically optimized
 * **Timezone Aware:** Includes logic for UTC to Local Time conversion, including complex date/month/year rollovers, but years are assumed to be in the range 2000 - 2099.
 * **High Precision:** Utilizes 64-bit 'double' types for Latitude and Longitude to maintain high calculation accuracy.
 * **Smart UI:** Features a "Heartbeat" indicator and diagnostic screens to distinguish between wiring issues ("NO DATA") and satellite acquisition ("NO SIGNAL").
+* **GPS Cold Start Detection:** Recognises the date 3"1/12/99" as the "I do not yet have the full almanic" date when the GPS module has not got a full fix, typically after a cold start, and displays the date as "--/--/----" during this period.
 * **Efficient Parsing:** Uses standard C-string libraries and 'strcmp' for a lean memory footprint.
-* **Heartbeat Monitor:** Visual "triangle" indicator flags toggle on the OLED every second to prove the code is alive and processing.
+* **Heartbeat Monitor:** Visual corner "triangle" indicator flags toggle on the OLED every second to prove the code is alive and processing.
 * **Dual-State Error Handling:**
     * **NO SIGNAL:** The GPS is communicating, but hasn't locked onto enough satellites yet.
     * **NO DATA:** The GPS hardware is disconnected or the serial stream has stopped.
-* **Checksum Validation:** Every NMEA sentence is XOR-verified before parsing to prevent garbled data from affecting your display.
+* **Checksum Validation:** Every NMEA sentence is XOR-verified before parsing to prevent garbled or incorrect data from being displayed.
 
 
 ## Why This Sketch is "Robust"
@@ -33,14 +37,14 @@ This project is built differently:
 * **Double Data Buffering:** The raw GPS data is read from the circular buffer into another buffer for parsing and processing.
 * **Manual NMEA Parsing:** Instead of a heavy library, it uses a custom, lightweight parser utilizing 'strtok', 'strchr', and pointer arithmetic. This provides absolute control over memory and speed.
 * **Robust Timezone Engine:** Includes a signed-integer math engine to handle timezone offsets, including day, month, and year rollovers (and even leap years).
-* **Non-Flicker OLED UI:** Updates the SSD1306 display only when data changes to prevent the "flashing" associated with frequent screen clearing.
+* **Non-Flicker OLED UI:** Updates the SSD1306 display only when the data changes to prevent the "flashing" associated with frequent screen clearing.
 * **Faster I2C Clock:** The faster I2C clock speed of 400KHz is used, instead of the default 100KHz, for updating the OLED display.
 
 
 ## Hardware Requirements
-1.  Arduino **Nano R4** or **Uno R4** (Minima or WiFi).
+1.  **Arduino** **Nano R4** or **Uno R4** (Minima or WiFi).
 2.  **NEO-6M** GPS Module (or similar NMEA-compliant module).
-3.  **SSD1306** 128x64 I2C OLED display.
+3.  **SSD1306** 128x64 0.96" I2C OLED display.
 4.  **Breadboard** or breakout board and jumper wires.
 
 
@@ -52,8 +56,8 @@ This project is built differently:
 | **GPS RX** | D1 (TX) | Connects to Arduino TX. |
 | **GPS TX** | D0 (RX) | Connects to Arduino RX. |
 | **GPS GND** | GND | Common Ground. |
-| **OLED VCC** | 5V or 3.3V | Check your specific module's voltage. |
 | **OLED GND** | GND | Common Ground. |
+| **OLED VCC** | 5V or 3.3V | Check your specific module's voltage. |
 | **OLED SCL** | A5 / SCL | Connects to Arduino I2C clock. |
 | **OLED SDA** | A4 / SDA | Connects to Arduino I2C data. |
 
