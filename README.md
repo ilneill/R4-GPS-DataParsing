@@ -8,9 +8,9 @@ A high-performance, interrupt-driven NMEA sentence parser specifically optimized
 | ![Up and Running!](images/NEO-6M-GPS-Module%20Project.jpg) | ![Look at the Data!](images/OLED-Data-Display.jpg) |
 
 
-## Warning!
-As I was working on this script, improving the logic around the GPS module cold starting and fixing some typos, v1.5.2 of the **Arduino Uno R4** board package was released. Of course, I upgraded from v1.5.1 to this new version, but then the script stopped working, or specifically the OLED display stopped working. The script compiles perfectly and downloads without issue, but it seems that something in the board package update breaks something (a something that is I2C related, I think) and despite a lot of experimenting with suggested workarounds and I2C timeout values, only downgrading back to v1.5.1 fixed the OLED display issue.
-
+## Warnings!
+* As I was working on this script, improving the logic around the GPS module cold starting and fixing some typos, v1.5.2 of the **Arduino Uno R4** board package was released. Of course, I upgraded from v1.5.1 to this new version, but then the script stopped working, or specifically the OLED display stopped working. The script compiles perfectly and downloads without issue, but it seems that something in the board package update breaks something (a something that is I2C related, I think) and despite a lot of experimenting with suggested workarounds and I2C timeout values, only downgrading back to v1.5.1 fixed the OLED display issue.
+* If your OLED display does not seem to be responding, use the Arduino I2C Scanner sketch to check the I2C address and that the OLED is on the I2C bus. If it is not found on the I2C bus at all, check that the SDA and SCL lines both have pull-up resistors.
 
 ## Key Features
 * **Hardware Interrupts:** Uses 'FspTimer' to sample 'Serial1' at 1kHz, placing the raw GPS data in a robust circular buffer.
@@ -44,7 +44,7 @@ This project is built differently:
 ## Hardware Requirements
 1.  **Arduino** **Nano R4** or **Uno R4** (Minima or WiFi).
 2.  **NEO-6M** GPS Module (or similar NMEA-compliant module).
-3.  **SSD1306** 128x64 0.96" I2C OLED display.
+3.  **SSD1306** 128x64 0.96" or 64x48 0.66" I2C OLED display.
 4.  **Breadboard** or breakout board and jumper wires.
 
 

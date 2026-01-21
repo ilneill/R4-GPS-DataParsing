@@ -26,11 +26,17 @@
 #include <Adafruit_GFX.h>                 // Installed via the library manager.
 #include <Adafruit_SSD1306.h>             // Installed via the library manager.
 
-//#define DEBUG
+//#define DEBUG                             // Enable some debugging output to the Serial Monitor.
+#define OLED12864                         // Enable a 128x64 OLED display, or default to a 64x48 OLED display.
 
 #define GPSBAUD     9600                  // NEO-6M GPS module baud rate.
-#define SCRNWDTH    128                   // OLED display pixel width.
-#define SCRNHGHT    64                    // OLED display pixel height.
+#ifdef OLED12864
+  #define SCRNWDTH    128                 // OLED display pixel width.
+  #define SCRNHGHT    64                  // OLED display pixel height.
+#else
+  #define SCRNWDTH    64                  // OLED display pixel width.
+  #define SCRNHGHT    48                  // OLED display pixel height.
+#endif
 #define OLEDRST     -1                    // Reset pin # (or -1 if sharing Arduino reset pin).
 #define SCRNADDR    0x3C                  // OLED display module I2C address.
 #define GPSBUFR1    512                   // Raw GPS data buffer size (bytes).
@@ -118,7 +124,7 @@ void setup() {
   myDisplay.setTextColor(SSD1306_WHITE);  // Draw white text.
   myDisplay.cp437(true);                  // Use full 256 char 'Code Page 437' font.
   myDisplay.setCursor(0,0);               // Start at top-left corner.
-  myDisplay.println("Nano R4 Ready!");    // Show a message on the OLED display.
+  myDisplay.println("R4 Ready!");    // Show a message on the OLED display.
   myDisplay.display();
   delay(1000);                            // Pause for 1 second to allow the message to be seen.
   // Clear the buffer.
@@ -228,11 +234,17 @@ void loop() {
     if (!signalWarning) {
       // Update the OLED display.
       myDisplay.clearDisplay();           // Clear the OLED display.
+      #ifdef OLED12864
       myDisplay.drawRect(6, 20, 116, 24, SSD1306_WHITE);
       myDisplay.fillRect(6, 20, 116, 24, SSD1306_WHITE);
       myDisplay.setTextSize(2);
-      myDisplay.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white.
       myDisplay.setCursor(22, 24);        // Centering the "NO DATA" message.
+      #else
+      myDisplay.drawRect(0, 16, 64, 16, SSD1306_WHITE);
+      myDisplay.fillRect(0, 16, 64, 16, SSD1306_WHITE);
+      myDisplay.setCursor(12, 20);         // Centering the "NO DATA" message.
+      #endif
+      myDisplay.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text on white.
       myDisplay.println("NO DATA");
       myDisplay.display();
       // Send a message to the serial monitor.
@@ -480,11 +492,11 @@ void showGPSDateTime(bool gpsCold) {
   }
 }
 
+#ifdef OLED12864
 // Print the GPS date, time and location to the OLED display.
 void displayGPSDateTime(bool gpsCold) {
   static bool noSignal = false;
   static byte pastTimeS = 255;
-  // Some locals to stress test the display spacing.
   if (gpsValid) {
     noSignal = false;
     if (gpsTimeS != pastTimeS) {              // Ensure we only update the display every second.
@@ -497,9 +509,10 @@ void displayGPSDateTime(bool gpsCold) {
       } else {
         // Draw triangle in top-right corner.
         myDisplay.fillTriangle(127, 0, 122, 0, 127, 5, SSD1306_WHITE);
-      }      
+      }
+      // --- SET UP TEXT ---
       myDisplay.setTextColor(SSD1306_WHITE, SSD1306_BLACK); // White text, black background.
-      // --- DRAW CENTERED TITLE ---
+      // --- HEADER LINE ---
       myDisplay.setTextSize(2);               // Double size text (where each character is 12 pixels wide including the gap).
       myDisplay.setCursor(16, 0);             // Top of screen, (128 - (titleLen * 12)) / 2 = 16
       myDisplay.println("GPS DATA");
@@ -507,7 +520,8 @@ void displayGPSDateTime(bool gpsCold) {
       myDisplay.drawFastHLine(0, 18, 128, SSD1306_WHITE); // Starts at X=0, Y=18, width=128 pixels.
       // --- DRAW DATA ---
       myDisplay.setTextSize(1);              // Reset to normal size text.
-      myDisplay.setCursor(0, 22);            // Start data below title and line (title is ~16px high).
+      myDisplay.setCursor(0, 22);            // Start data below header and line (title is ~16px high).
+      // Date.
       if (gpsCold) {
         myDisplay.println("Date: --/--/----");
       }
@@ -519,17 +533,21 @@ void displayGPSDateTime(bool gpsCold) {
         myDisplay.print("/20");
         oledPrint2dln(gpsDateY);
       }
+      // Time.
       myDisplay.print("Time:  ");
       oledPrint2d(gpsTimeH);
       myDisplay.print(":");
       oledPrint2d(gpsTimeM);
       myDisplay.print(":");
       oledPrint2dln(gpsTimeS);
+      // Spacer.
       myDisplay.println();                    // Blank line spacer.
+      // Latitude.
       myDisplay.print(" Lat: ");
       myDisplay.print(gpsLatD, 5);
       myDisplay.write(248);                   // Degree symbol for CP437.
       myDisplay.println();
+      // Longitude.
       myDisplay.print("Long: ");
       myDisplay.print(gpsLongD, 5);
       myDisplay.write(248);                   // Degree symbol for CP437.
@@ -577,6 +595,89 @@ void displayGPSDateTime(bool gpsCold) {
     }
   }
 }
+#else
+// Print the GPS date, time and location to the OLED display.
+void displayGPSDateTime(bool gpsCold) {
+  static bool noSignal = false;
+  static byte pastTimeS = 255;
+  if (gpsValid) {
+    noSignal = false;
+    if (gpsTimeS != pastTimeS) {              // Ensure we only update the display every second.
+      myDisplay.clearDisplay();               // Clear the OLED display.
+      // --- HEARTBEAT SQUARES ---
+      // Toggle based on even/odd seconds.
+      if (gpsTimeS % 2 == 0) {
+        // Draw square in top-left corner.
+        myDisplay.fillRect(0, 0, 3, 3, SSD1306_WHITE);
+      } else {
+        // Draw square in top-right corner.
+        myDisplay.fillRect(61, 0, 3, 3, SSD1306_WHITE);
+      }
+      // --- SET UP TEXT ---
+      myDisplay.setTextColor(SSD1306_WHITE, SSD1306_BLACK); // White text, black background.
+      myDisplay.setTextSize(1);               // Normal size text.
+      // --- HEADER LINE ---
+      myDisplay.setCursor(7, 0); 
+      myDisplay.print("GPS");
+      myDisplay.setCursor(36, 0);
+      myDisplay.print("S:");
+      myDisplay.print(gpsSats);
+      // --- TOP OF DATA LINE --- 
+      myDisplay.drawFastHLine(0, 9, 64, SSD1306_WHITE);
+      // --- DRAW DATA ---
+      // Date.
+      myDisplay.setCursor(2, 12);             // Start data below header and line (header is ~8px high).
+      if (gpsCold) {
+        myDisplay.print("D:--/--/--");
+      } else {
+        myDisplay.print("D:");
+        oledPrint2d(gpsDateD);
+        myDisplay.print("/");
+        oledPrint2d(gpsDateM);
+        myDisplay.print("/");
+        oledPrint2d(gpsDateY);
+      }
+      // Time.
+      myDisplay.setCursor(2, 21);
+      myDisplay.print("T:");
+      oledPrint2d(gpsTimeH);
+      myDisplay.print(":");
+      oledPrint2d(gpsTimeM);
+      myDisplay.print(":");
+      oledPrint2d(gpsTimeS);
+      // Latitude.
+      myDisplay.setCursor(0, 30);
+      myDisplay.print("La:");
+      myDisplay.print(gpsLatD, 4);
+      //myDisplay.write(248);                   // Degree symbol for CP437.
+      // Longitude.
+      myDisplay.setCursor(0, 39);
+      myDisplay.print("Lo:");
+      myDisplay.print(gpsLongD, 4);
+      //myDisplay.write(248);                   // Degree symbol for CP437.
+      // --- BOTTOM OF DATA LINE ---
+      // We draw this at Y=47 (the last row of pixels).
+      myDisplay.drawFastHLine(0, 47, 64, SSD1306_WHITE);
+      // Display everything on the OLED display now.
+      myDisplay.display();
+      pastTimeS = gpsTimeS;
+    }
+  } else {
+    if (!noSignal) {
+      noSignal = true;
+      myDisplay.clearDisplay();
+      // // Draw Box: x, y, width, height, color.
+      myDisplay.drawRect(0, 16, 64, 16, SSD1306_WHITE);
+      myDisplay.fillRect(0, 16, 64, 16, SSD1306_WHITE);
+      myDisplay.setCursor(5, 20);             // Somewhere in the middle of the screen, msgX: (64 - 54) / 2, msgY: 20
+      myDisplay.setTextColor(SSD1306_BLACK, SSD1306_WHITE); // Black text, white background.
+      myDisplay.println("NO SIGNAL");         // 9 chars * 6px = 54px wide.
+      // Display everything on the OLED display now.
+      myDisplay.display();
+    }
+  }
+}
+#endif
 
 // Simple function to compare 2 strings (char arays).
 // Replaced with standard library function strcmp().
